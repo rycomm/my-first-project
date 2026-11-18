@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My First Project</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #1e1e2e;
+      color: white;
+      text-align: center;
+      padding: 30px;
+    }
+    .gallery img {
+      max-width: 280px;
+      border-radius: 12px;
+      border: 3px solid #89b4fa;
+      margin: 10px;
+    }
+    form {
+      background-color: #313244;
+      max-width: 400px;
+      margin: 30px auto;
+      padding: 20px;
+      border-radius: 12px;
+    }
+    input, button {
+      width: 90%;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+    }
+    button {
+      background-color: #a6e3a1;
+      color: #1e1e2e;
+      font-weight: bold;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Welcome to My First Project!</h1>
+  <p>Check out my pictures and log an entry below.</p>
+
+  <!-- YOUR 3 IMAGES -->
+  <div class="gallery">
+    <img src="corp-folder-mapping-1.jpg" alt="Mapping image 1">
+    <img src="corp-folder-mapping-2.jpg" alt="Mapping image 2">
+    <img src="corp-folder-mapping-3.jpg" alt="Mapping image 3">
+  </div>
+
+  <!-- YOUR DATA FORM -->
+  <form id="myForm">
+    <h3>Log an Entry</h3>
+    <input type="text" name="name" placeholder="Your Name" required>
+    <input type="text" name="note" placeholder="Write a note..." required>
+    <button type="submit">Save to Spreadsheet</button>
+    <p id="status"></p>
+  </form>
+
+  <!-- THE MAGIC MAILBOX SCRIPT -->
+  <script>
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbxQNw-5gLL6aCE3gwaLOWW5LsDGZ68TS-3UTcPdaBOQcHMUQh9nxMp97e9KN3DFUeVsqw/exec';
+    const form = document.getElementById('myForm');
+    const status = document.getElementById('status');
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      status.textContent = "Sending...";
+      fetch(scriptURL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: new URLSearchParams(new FormData(form))
+      })
+      .then(() => {
+        status.textContent = "Saved to spreadsheet!";
+        form.reset();
+      })
+      .catch(() => {
+        status.textContent = "Oops, something went wrong.";
+      });
+    });
+  </script>
+
+</body>
+</html>
