@@ -15,10 +15,11 @@
       border-radius: 12px;
       border: 3px solid #89b4fa;
       margin: 10px;
+      vertical-align: middle;
     }
     form {
       background-color: #313244;
-      max-width: 400px;
+      max-width: 420px;
       margin: 30px auto;
       padding: 20px;
       border-radius: 12px;
@@ -32,28 +33,58 @@
       border: none;
       font-size: 16px;
     }
+    input[type="file"] {
+      background-color: #45475a;
+      color: white;
+      font-size: 14px;
+    }
     button {
       background-color: #a6e3a1;
       color: #1e1e2e;
       font-weight: bold;
       cursor: pointer;
     }
+    .table-wrap {
+      max-width: 950px;
+      margin: 40px auto;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: #313244;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #45475a;
+      text-align: left;
+    }
+    th {
+      background-color: #45475a;
+      color: #89b4fa;
+    }
+    td img {
+      max-width: 90px;
+      border-radius: 6px;
+      border: 2px solid #89b4fa;
+    }
   </style>
 </head>
 <body>
 
-  <!-- CUSTOM PAGE TITLE & SUBTITLE -->
   <h1>Corporate Folder Mapping</h1>
   <p>Review the architecture diagrams and log feedback or updates below.</p>
 
-  <!-- YOUR 3 IMAGES -->
-  <div class="gallery">
+  <!-- GALLERY (Starter 3 images + newly uploaded images appear here) -->
+  <div class="gallery" id="gallery">
     <img src="corp-folder-mapping-1.jpg" alt="Mapping image 1">
     <img src="corp-folder-mapping-2.jpg" alt="Mapping image 2">
     <img src="corp-folder-mapping-3.jpg" alt="Mapping image 3">
   </div>
 
-  <!-- YOUR CUSTOM DATA FORM -->
+  <!-- DATA FORM WITH IMAGE UPLOAD -->
   <form id="myForm">
     <h3>Log an Entry</h3>
     <input type="text" name="name" placeholder="Your Name" required>
@@ -67,32 +98,151 @@
     </select>
 
     <input type="text" name="note" placeholder="Write a note..." required>
+    <input type="file" id="imageInput" accept="image/*">
     <button type="submit">Save to Spreadsheet</button>
     <p id="status"></p>
   </form>
 
-  <!-- THE MAGIC MAILBOX SCRIPT -->
+  <!-- LIVE SPREADSHEET DATA TABLE -->
+  <div class="table-wrap">
+    <h2>Logged Entries</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Note</th>
+          <th>Image</th>
+        </tr>
+      </thead>
+      <tbody id="entriesBody">
+        <tr><td colspan="5">Loading entries...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
   <script>
     const scriptURL = 'https://script.google.com/macros/s/AKfycbxQNw-5gLL6aCE3gwaLOWW5LsDGZ68TS-3UTcPdaBOQcHMUQh9nxMp97e9KN3DFUeVsqw/exec';
     const form = document.getElementById('myForm');
     const status = document.getElementById('status');
+    const imageInput = document.getElementById('imageInput');
 
-    form.addEventListener('submit', e => {
+    // Shrinks large photos in the browser so they upload quickly
+    function prepareImage(file) {
+      return new Promise(resolve => {
+        if (!file) return resolve(null);
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const maxW = 1000;
+            const scale = img.width > maxW ? maxW / img.width : 1;
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            resolve({
+              base64: dataUrl.split(',')[1],
+              fileName: file.name.replace(/\.[^/.]+$/, "") + ".jpg",
+              mimeType: "image/jpeg"
+            });
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Loads rows from Google Sheets into the table and gallery
+    function loadEntries() {
+      fetch(scriptURL)
+        .then(res => res.json())
+        .then(rows => {
+          const tbody = document.getElementById('entriesBody');
+          const gallery = document.getElementById('gallery');
+          tbody.innerHTML = "";
+
+          // Clear previously loaded dynamic images so they don't duplicate
+          gallery.querySelectorAll('img[data-uploaded="true"]').forEach(el => el.remove());
+
+          if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5">No entries yet.</td></tr>';
+            return;
+          }
+
+          rows.forEach(row => {
+            const tr = document.createElement('tr');
+            [row.date, row.name, row.category, row.note].forEach(text => {
+              const td = document.createElement('td');
+              td.textContent = text;
+              tr.appendChild(td);
+            });
+
+            const imgTd = document.createElement('td');
+            if (row.image) {
+              // Add thumbnail to the data table
+              const link = document.createElement('a');
+              link.href = row.image;
+              link.target = "_blank";
+              const thumb = document.createElement('img');
+              thumb.src = row.image;
+              link.appendChild(thumb);
+              imgTd.appendChild(link);
+
+              // Also display the uploaded image in the main gallery
+              const galleryImg = document.createElement('img');
+              galleryImg.src = row.image;
+              galleryImg.alt = row.note || "Uploaded image";
+              galleryImg.setAttribute("data-uploaded", "true");
+              gallery.appendChild(galleryImg);
+            } else {
+              imgTd.textContent = "—";
+            }
+            tr.appendChild(imgTd);
+            tbody.appendChild(tr);
+          });
+        })
+        .catch(() => {
+          document.getElementById('entriesBody').innerHTML =
+            '<tr><td colspan="5">Could not load entries.</td></tr>';
+        });
+    }
+
+    // Handle form submission
+    form.addEventListener('submit', async e => {
       e.preventDefault();
-      status.textContent = "Sending...";
+      status.textContent = "Uploading & saving...";
+
+      const params = new URLSearchParams(new FormData(form));
+      const imgData = await prepareImage(imageInput.files[0]);
+      if (imgData) {
+        params.append('imageData', imgData.base64);
+        params.append('fileName', imgData.fileName);
+        params.append('mimeType', imgData.mimeType);
+      }
+
       fetch(scriptURL, {
         method: 'POST',
         mode: 'no-cors',
-        body: new URLSearchParams(new FormData(form))
+        body: params
       })
       .then(() => {
-        status.textContent = "Saved to spreadsheet!";
+        status.textContent = "Saved! Refreshing table...";
         form.reset();
+        setTimeout(() => {
+          status.textContent = "";
+          loadEntries();
+        }, 1800);
       })
       .catch(() => {
         status.textContent = "Oops, something went wrong.";
       });
     });
+
+    // Load the data table as soon as the page opens
+    loadEntries();
   </script>
 
 </body>
